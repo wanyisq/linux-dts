@@ -10,40 +10,38 @@
 
 #define GPIOS 2
 
+static char userdata[] = {"user data"};
 
 int main(int argc , char **argv){
-	int fd,num,cmd=2;
-	char *hello_node = "/dev/hello_gpio";
-	char cmdstr[4] = {0}; 
-	
-	if((0 != memcmp("led", argv[1], strlen("led"))) || (NULL == argv[1]) ||( NULL == argv[2])){
-		printf("input cmd error, the cmd is ledx, x mean num\n");
+	int fd,ret;
+	char *filename;
+	unsigned char databuf[1];
+
+	if(argc != 3){
+		printf("error uasge\n");
 		return -1;
 	}
-	memcpy(cmdstr, argv[1], strlen(argv[1]));
-	num = atoi(&cmdstr[3]);
-	printf("the cmd is: set led[%d], %s\n", num, argv[2]);	
-	
-	if(0 == memcmp("on", argv[2], strlen("on"))){
-		cmd = 0;
-		printf("led on\n");
-	}else
-	{
-		cmd = 1;
-		printf("led off\n");
+
+	filename = argv[1];
+	printf("input file name %s\n", filename);
+	fd = open(filename, O_RDWR);
+	if(fd < 0){
+		printf("can't open file %s\n", filename);
+		return -1;
 	}
-	
-	
-	
-/*O_RDWR只读打开,O_NDELAY非阻塞方式*/	
-	if((fd = open(hello_node,O_RDWR|O_NDELAY))<0){
-		printf("APP open %s failed!\n",hello_node);
+	databuf[0] = atoi(argv[2]);
+	printf("input cmd is %d\n", databuf[0]);
+
+	ret = write(fd, databuf, sizeof(databuf));
+	if(ret < 0){
+		printf("write cmd failed\n");
 	}
-	else{
-		printf("APP open %s success!\n",hello_node);
-		ioctl(fd,cmd,num);
+
+	ret = close(fd);
+	if(ret < 0){
+		printf("can't close file %s\n", filename);
+		return -1;
 	}
-	
-	close(fd);
+	printf("led test end\n");
 	return 0;
 }

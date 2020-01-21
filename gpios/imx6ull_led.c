@@ -1,147 +1,145 @@
+#include <linux/types.h>
+#include <linux/kernel.h>
+#include <linux/delay.h>
+#include <linux/ide.h>
 #include <linux/init.h>
 #include <linux/module.h>
-#include <linux/platform_device.h>
+#include <linux/errno.h>
+#include <linux/gpio.h>
+#include <linux/cdev.h>
+#include <linux/device.h>
 #include <linux/of.h>
+#include <linux/of_address.h>
 #include <linux/of_gpio.h>
+#include <asm/mach/map.h>
+#include <asm/uaccess.h>
+#include <asm/io.h>
 
-#include <linux/miscdevice.h>
-#include <linux/fs.h>
+#define DRIVER_NAME "leds"
+#define LED_NUM	1
 
-#define DEVICE_NAME "hello_gpio"
-#define DRIVER_NAME "ledtest"
-#define LED_NUM	2
+#define LEDON	1
+#define LEDOFF	0
 
-int gpio_pin[2] = {-1};
-
-static long hello_ioctl( struct file *files, unsigned int cmd, unsigned long arg){
-	printk("cmd is %d,num is %d\n",cmd,arg);
-	
-	gpio_set_value(gpio_pin[arg], cmd);
-
-	return 0;
-}
-
-static int hello_release(struct inode *inode, struct file *file){
-	printk(KERN_EMERG "hello release\n");
-	return 0;
-}
-
-static int hello_open(struct inode *inode, struct file *file){
-	printk(KERN_EMERG "hello open\n");
-	return 0;
-}
-
-static struct file_operations hello_ops = {
-	.owner = THIS_MODULE,
-	.open = hello_open,
-	.release = hello_release,
-	.unlocked_ioctl = hello_ioctl,
-};
-
-static  struct miscdevice hello_dev = {
-	.minor = MISC_DYNAMIC_MINOR,
-	.name = DEVICE_NAME,
-	.fops = &hello_ops,
-};
-
-static int leds_probe(struct platform_device * pdev)
+struct led_dev
 {
-	struct device_node *node = pdev->dev.of_node;
-	int ret;
-	
-	printk("led init\n");
-	
-	gpio_pin[0] = of_get_named_gpio(node, "led_gpio1", 0);
-	gpio_pin[1] = of_get_named_gpio(node, "led_gpio2", 0);
+	int major;
+	int minor;
+	dev_t devid;
+	struct cdev cdev;
+	struct class *class;
+	struct device *device;
+	struct device_node *node;
+	int led_gpio;
+};
+struct led_dev led;
 
-	if (gpio_pin[0] < 0)
-        printk("gpio_pin[0] is not available \n");	
-	ret = gpio_request(gpio_pin[0], "led0");
-	if(ret!=0){
-		printk("gpio_pin[0] request %d failed.", gpio_pin[0]);
-		return ret;
+static ssize_t led_open(struct inode *node, struct file *filp)
+{
+	filp->private_data = &led;
+	return 0;
+}
+
+static ssize_t led_read(struct file *filp, char __user *buf, size_t count, loff_t *offt)
+{
+	return 0;
+}
+static ssize_t led_write(struct file *filp, const char __user *buf, size_t count, loff_t *offt)
+{
+	int ret = 0;
+	unsigned char databuf[1];
+	unsigned char ledstatus = 0;
+	struct led_dev *dev = filp->private_data;
+	
+	ret = copy_from_user(databuf, buf, count);
+	if(ret < 0 ){
+		printk("kernel write failed\n");
+		return -EFAULT;
 	}
-	if (gpio_pin[1] < 0)
-        printk("gpio_pin[1] is not available \n");
-	ret = gpio_request(gpio_pin[1], "led1");
-	if(ret!=0){
-		printk("gpio_pin[1] request %d failed.", gpio_pin[1]);
-		return ret;
-	}
-	printk("gpio_pin[0] is %d\n",gpio_pin[0]);
-	printk("gpio_pin[1] is %d\n",gpio_pin[1]);
-	
-	
-	gpio_free(gpio_pin[0]);
-	gpio_free(gpio_pin[1]);
-	
-	gpio_direction_output(gpio_pin[0],0);
-	gpio_set_value(gpio_pin[0], 1);
-	
-	gpio_direction_output(gpio_pin[1],0);
-	gpio_set_value(gpio_pin[1], 1);
-	
-	misc_register(&hello_dev);
-	printk("misc_register\n");
-	if(ret<0)
+
+	ledstatus = databuf[0];
+	if(ledstatus == LEDON){
+		gpio_set_value(dev->led_gpio, 0);
+	}else
 	{
-		printk("leds:register device failed!\n");
-		goto exit;
+		gpio_set_value(dev->led_gpio, 1);
 	}
 	return 0;
-
-exit:
-	printk("misc_deregister\n");
-	misc_deregister(&hello_dev);
-	return ret;
+}
+static int led_release(struct inode *node, struct file *filp)
+{
 	return 0;
 }
+static struct file_operations led_ops = {
+	.owner = THIS_MODULE,
+	.open = led_open,
+	.read = led_read,
+	.write = led_write,
+	.release = led_release,
+};
 
-static int leds_remove(struct platform_device * pdev)
+static int __init leds_init(void)
 {
-	gpio_direction_output(gpio_pin[0],0);
-	gpio_set_value(gpio_pin[0], 0);
+	int ret = 0;
+
+	led.node = of_find_node_by_path("/leds");
+	if(led.node == NULL){
+		printk("find node none\n");
+		return -EINVAL;
+	}else
+	{
+		printk("fine node\n");
+	}
 	
-	gpio_direction_output(gpio_pin[1],0);
-	gpio_set_value(gpio_pin[1], 0);
-	misc_deregister(&hello_dev);
-	printk(KERN_ALERT "Goodbye, curel world, this is remove\n");
+	led.led_gpio = of_get_named_gpio(led.node, "gpios", 0);
+	if(led.led_gpio < 0){
+		printk("led gpio not found\n");
+		return -EINVAL;
+	}
+	printk("led gpio is %d\n", led.led_gpio);
+	ret = gpio_direction_output(led.led_gpio, 0);
+	if(ret < 0){
+		printk("can't set led gpio\n");
+	}
+
+	if(led.major){
+		led.devid = MKDEV(led.major, 0);
+		register_chrdev_region(led.devid, LED_NUM, DRIVER_NAME);
+	}else
+	{
+		alloc_chrdev_region(&led.devid, 0, LED_NUM, DRIVER_NAME);
+		led.major = MAJOR(led.devid);
+		led.minor = MINOR(led.devid);
+	}
+	printk("led major %d, minor %d\n", led.major, led.minor);
+
+	led.cdev.owner = THIS_MODULE;
+	cdev_init(&led.cdev, &led_ops);
+	cdev_add(&led.cdev, led.devid, LED_NUM);
+
+	led.class = class_create(THIS_MODULE, "led class");
+	if(IS_ERR(led.class)){
+		printk("led class %d\n", IS_ERR(led.class));
+		return PTR_ERR(led.class);
+	}
+	led.device = device_create(led.class, NULL, led.devid, NULL, DRIVER_NAME);
+	if(IS_ERR(led.device)){
+		return PTR_ERR(led.device);
+	}
+	printk("led init ok\n");
 	return 0;
 }
-
-static const struct of_device_id of_leds_dt_match[] = {
-	{.compatible = DRIVER_NAME},
-	{},
-};
-
-MODULE_DEVICE_TABLE(of,of_leds_dt_match);
-
-static struct platform_driver leds_driver = {
-	.probe 	= leds_probe,
-	.remove = leds_remove,
-	.driver = {
-		.name = DRIVER_NAME,
-		.owner = THIS_MODULE,
-		.of_match_table = of_leds_dt_match,
-		},
-};
-
-static int leds_init(void)
+static void __exit leds_exit(void)
 {
-	printk(KERN_ALERT "Hello, world\n");
-	return platform_driver_register(&leds_driver);
-	return 0;
-}
-
-static void leds_exit(void)
-{
-	printk(KERN_ALERT "Goodbye, curel world\n");
-	platform_driver_unregister(&leds_driver);
+	cdev_del(&led.cdev);
+	unregister_chrdev_region(led.devid, LED_NUM);
+	device_destroy(led.class, led.devid);
+	class_destroy(led.class);
 }
 
 module_init(leds_init);
 module_exit(leds_exit);
 
 MODULE_LICENSE("Dual BSD/GPL");
-MODULE_AUTHOR("rty");
-MODULE_DESCRIPTION("topeet4412_regiter_dev_drv");
+MODULE_AUTHOR("wanyisq");
+MODULE_DESCRIPTION("imx6ull led driver by pinctr");
