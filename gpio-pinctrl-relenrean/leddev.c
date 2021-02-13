@@ -25,7 +25,7 @@
 #define LEDOFF  0
 #define LEDDEV_CNT  1
 #define LEDDEV_NAME "led_driver_use_dts_platform"
-#define LEDDEV_CLASS_NAME   "led_class"
+#define LEDDEV_CLASS_NAME   "led_driver_use_dts_platform"//"led_class"
 
 struct leddev_dev
 {
@@ -127,6 +127,7 @@ static int led_probe(struct platform_device *dev)
     gpio_request(leddev.gpio[1], "led1");
     gpio_request(leddev.gpio[2], "led2");
     gpio_request(leddev.gpio[3], "led3");
+
     for(i = 0; i < leddev.gpio_count; i++){
         gpio_direction_output(leddev.gpio[i], 1);
     }
@@ -137,6 +138,10 @@ static int led_remove(struct platform_device *dev){
     int i = 0;
     for(i = 0; i < leddev.gpio_count; i++){
         gpio_set_value(leddev.gpio[i], 1);
+    }
+
+    for(i = 0; i < leddev.gpio_count; i++){
+        gpio_free(leddev.gpio[i]);
     }
     
     cdev_del(&leddev.cdev);

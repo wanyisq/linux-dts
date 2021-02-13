@@ -12,10 +12,13 @@ ARCH = arm
 KERN_DIR = /home/w/qemu/kernel/100ask_imx6ull-qemu/linux-4.9.88
 CROSS_COMPILE = /home/w/qemu/kernel/100ask_imx6ull-qemu/ToolChain/arm-linux-gnueabihf/bin/arm-linux-gnueabihf-
 CC = $(CROSS_COMPILE)gcc
+TARGE = ledtest
 
 all:
 	make -C $(KERN_DIR) M=`pwd` modules 
-	$(CROSS_COMPILE)gcc -o ledtest ledtest.c 
+	$(CROSS_COMPILE)gcc -o $(TARGE) $(TARGE).c 
+	cp $(TARGE) ~/nfs/
+	cp *.ko ~/nfs/
 
 clean:
 	make -C $(KERN_DIR) M=`pwd` modules clean
