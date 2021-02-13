@@ -74,3 +74,9 @@ of_find_node_by_path
 of_gpio_named_count
 ```
 函数统计设备树节点下gpio属性的gpio个数。
+
+### 3. 模拟设备挂在主机nfs目录
+使用命令
+```
+mount -t nfs -o nolock,vers=3 10.0.2.2:/home/book/nfs_rootfs /mnt
+```
