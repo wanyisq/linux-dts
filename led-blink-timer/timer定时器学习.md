@@ -21,3 +21,12 @@ timer.data = xxx;
 //可以设置将某个结构提作为参数传入function，这样可以在function函数内使用相关变量 timer.data = (unsigned long)&dev;
 add_timer(&timer);  //启动定时器
 ```
+### 3.定时器相关函数
+```
+int del_timer(struct timer_list *timer) //删除函数，多核系统上需要等待其他处理器定时处理函数退出
+
+int del_timer_sync(struct timer_list *timer)//上述函数的同步版本
+
+int mod_timer(struct timer_list *timer, unsigned long expires)  //修改定时器定时周期，此函数会激活定时器
+
+```
