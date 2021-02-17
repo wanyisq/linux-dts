@@ -48,7 +48,7 @@ static int led_init(void)
 {
 	int ret = 0;
 
-	timerdev.node = of_find_node_by_path("/leds");
+	timerdev.node = of_find_node_by_path("/wan-leds");
 	if(timerdev.node == NULL){
 		printk("find node none\n");
 		return -EINVAL;
@@ -57,7 +57,7 @@ static int led_init(void)
 		printk("fine node\n");
 	}
 	
-	timerdev.led_gpio = of_get_named_gpio(timerdev.node, "gpios", 0);
+	timerdev.led_gpio = of_get_named_gpio(timerdev.node, "leds0", 0);
 	if(timerdev.led_gpio < 0){
 		printk("timerdev gpio not found\n");
 		return -EINVAL;
@@ -106,7 +106,7 @@ static long timer_unlock_ioctl(struct file *filp, unsigned int cmd, unsigned lon
 		case SETPERIOD:
 			spin_lock_irqsave(&dev->lock, flags);
 			dev->timeperiod = arg;
-			printk("input timer period is %d\n", arg);
+			printk("input timer period is %ld\n", arg);
 			spin_unlock_irqrestore(&dev->lock, flags);
 			mod_timer(&dev->timer, jiffies + msecs_to_jiffies(arg));
 			printk("timer ioctl setperiod\n");
